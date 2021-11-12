@@ -11,23 +11,35 @@ public class CustomCharacterController : MonoBehaviour
     { 
         public string name;
         public GameObject gameObject;
+        public FootStepAndGroundCheck leftFoot;
+        public FootStepAndGroundCheck rightFoot;
     }
+    
+    // state of char 
+    public int state = 0;
+
+    private int _jumpState = 0;
+    // 0 for idle;
+    // 1 for walk;
+    // 2 for run;
     
     private CharacterController _charCtrl;
     private Animator _animator;
+    private Rigidbody _rb;
     public float rotateSpeedHorizontal;
-    
-    public bool canJump = false;
-    public bool canFall = false;
-    public float jumpTime = 0.5f;
-    public float jumpTimer = 0;
+    public bool isGrounded;
+    public bool jumpMode=false;
+    public float jumpForce;
+    public bool canLand=false;
+    public float jumpForceHorizontalWalk;
+    public float jumpForceHorizontalRun;
+    private bool _applyJumpForce = false;
+    public float jumpTime;
+    public float jumpTimer;
 
-    public float fallingTime = 0.5f;
-    public float fallingTimer = 0;
+    public bool shiftPressed=false;
     
     private bool _correctValues=true;
-    
-    
 
     public CharType[] charTypes;
     public int currentCharValue;
@@ -42,6 +54,7 @@ public class CustomCharacterController : MonoBehaviour
     {
         _charCtrl = charTypes[0].gameObject.GetComponent<CharacterController>();
         _animator = charTypes[0].gameObject.GetComponent<Animator>();
+        _rb = charTypes[0].gameObject.GetComponent<Rigidbody>();
         _maxCharValue = charTypes.Length;
     }
 
@@ -56,10 +69,83 @@ public class CustomCharacterController : MonoBehaviour
 
         MoveWithAnimation();
 
+        isGrounded = CheckGround();
+        
+        bool jumpActive=false;
+
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded && jumpActive)
+        {
+            _applyJumpForce = true;
+            jumpTimer = 0;
+            jumpMode = true;
+        }
+
+        if (jumpTimer < jumpTime)
+        {
+            if (jumpMode)
+                JumpVelocity();
+            jumpTimer += Time.deltaTime;
+        }
+
+        
+
+        if (_charCtrl.velocity.x == 0)
+            state = 0;
+        
+        //print(_charCtrl.velocity.y);
+
     }
+
+    #region - Jump / grounded-
     
 
+    public void JumpVelocity()
+    {
+        if (_applyJumpForce)
+        {
+            if (state == 0)
+                _jumpState = 0;
+            if (state == 1)
+                _jumpState = 1;
+            if (state == 2)
+                _jumpState = 2;
+            
+            _applyJumpForce = false;
+        }
+        
+        if (_jumpState == 0)
+        {
+            _charCtrl.Move(new Vector3(0,jumpForce,0)*Time.deltaTime);
+        }
 
+        if (_jumpState == 1)
+        {
+            _charCtrl.Move(new Vector3(jumpForceHorizontalWalk, jumpForce, 0) * Time.deltaTime);
+        }
+
+        if (_jumpState == 2)
+        {
+            _charCtrl.Move(new Vector3(jumpForceHorizontalRun, jumpForce, 0) * Time.deltaTime);
+        }
+
+
+
+    }
+
+    public bool CheckGround()
+    {
+        if (charTypes[currentCharValue].leftFoot.isGrounded)
+            return true;
+        
+        if (charTypes[currentCharValue].rightFoot.isGrounded)
+            return true;
+        
+        return false;
+    }
+    
+    
+    #endregion
+    
     #region - Animation -
     
     
@@ -74,6 +160,7 @@ public class CustomCharacterController : MonoBehaviour
         if (Input.GetKey(KeyCode.W))
         {
             _animator.SetBool(IsWalking,true);
+            state = 1;
         }
         else
         {
@@ -82,52 +169,37 @@ public class CustomCharacterController : MonoBehaviour
         
         if(Input.GetKey(KeyCode.LeftShift))
         {
+            shiftPressed = true;
             _animator.SetBool(IsRunning,true);
+            state = 2;
         }
         else
         {
+            shiftPressed = false;
             _animator.SetBool(IsRunning,false);
         }
     }
 
     private void ForVerticalAnimation()
     {
-        if (Input.GetKeyDown(KeyCode.Space) && canJump==false && canFall == false)
+        if (_charCtrl.velocity.y >= 0.1 && jumpMode)
         {
             _animator.SetBool(IsJumping,true);
-            canJump = true;
-            jumpTimer = 0;
         }
 
-        if (canJump)
+        if (_charCtrl.velocity.y < 0.1 && jumpMode)
         {
-            jumpTimer += Time.deltaTime;
-        }
-
-        if (jumpTimer > jumpTime)
-        {
-            jumpTimer = 0;
-            canJump = false;
             _animator.SetBool(IsJumping,false);
             _animator.SetBool(IsFalling,true);
-            canFall = true;
-            fallingTimer = 0;
+            canLand = true;
         }
-
-        if (canFall)
+        
+        if (jumpMode && isGrounded && canLand)
         {
-            
-            fallingTimer += Time.deltaTime;
-        }
-
-        if (fallingTimer > fallingTime)
-        {
-            fallingTimer = 0;
             _animator.SetBool(IsFalling,false);
             _animator.SetBool(Landed,true);
-            canFall = false;
-            canJump = false;
-            
+            jumpMode = false;
+            canLand = false;
         }
     }
 
@@ -143,6 +215,7 @@ public class CustomCharacterController : MonoBehaviour
     {
         _charCtrl = charTypes[currentCharValue].gameObject.GetComponent<CharacterController>(); 
         _animator = charTypes[currentCharValue].gameObject.GetComponent<Animator>();
+        _rb = charTypes[currentCharValue].gameObject.GetComponent<Rigidbody>();
         return false;
     }
 }
